@@ -20,16 +20,16 @@ import pyLDAvis
 import pyLDAvis.sklearn
 
 from collections import Counter
+import itertools
 from wordcloud import WordCloud, STOPWORDS
 from nltk.corpus import wordnet
+
 
 nltk.download('averaged_perceptron_tagger')
 nltk.download('wordnet')
 sns.set_style('whitegrid')
 
 from read_file import * # import functions used to read data files
-
-#TO-DO : trnsform the code to OOP.
 
 
 def cleanTxt(text):
@@ -149,7 +149,7 @@ def wordcloud_data(df, col):
     # Join the different processed titles together.
     long_string = ','.join(list(df[col].values))
     # Create a WordCloud object
-    wordcloud = WordCloud(width=1600, height=800,background_color="white", max_words=10000, contour_width=10, contour_color='steelblue')
+    wordcloud = WordCloud(background_color="white", max_words=10000, contour_width=10, contour_color='steelblue')
     # Generate a word cloud
     wordcloud.generate(long_string)
     #wordcloud.to_image()
@@ -181,8 +181,8 @@ def wordBarGraphFunction(df,column):
     word_count_dict = dict(Counter(topic_words))
     popular_words = sorted(word_count_dict, key = word_count_dict.get, reverse = True)
     popular_words_nonstop = [w for w in popular_words if w not in STOPWORDS]
-    plt.barh(range(50), [word_count_dict[w] for w in reversed(popular_words_nonstop[0:50])])
-    plt.yticks([x + 0.5 for x in range(50)], reversed(popular_words_nonstop[0:50]))
+    plt.barh(range(20), [word_count_dict[w] for w in reversed(popular_words_nonstop[0:20])])
+    plt.yticks([x + 1 for x in range(20)], reversed(popular_words_nonstop[0:20]))
     plt.title("Most common words")
     plt.show()
     
@@ -402,7 +402,7 @@ def get_clusters(model, tf, save, name="clusters"):
             T[i] = [0]*len(T[0])
             
     if save:
-        np.savetxt(name+".csv", T, delimiter=",")
+        np.savetxt("results/" + name+".csv", T, delimiter=",")
         
     return T
     
@@ -435,7 +435,7 @@ def get_topics(df,clusters,n,save):
             l[i].to_csv('results/Topic_'+str(i)+".csv")
     
     l.append(df[np.sum(clusters.iloc[:],axis = 1) == 0])
-    l[-1].to_csv("Non_classified.csv")
+    l[-1].to_csv("results/Non_classified.csv")
 
 
 
@@ -497,81 +497,144 @@ def get_topics_udf(topics, total_topics=1,
 
     return topic_terms
 
-def getTermsAndSizes(topic_display_list_item):
-    terms = []
-    sizes = []
-    for term, size in topic_display_list_item:
-        terms.append(term)
-        sizes.append(size)
-    return terms, sizes
+
+#Load the csv file containing the different countries :
+def load_tweets(no_topics,path_to_folder="results/"):
+  #num_top is the number of topics
+  #path_to_folder : the path to the folder containing the different tweets of each topic
+  #returns a list where each element is a dataframe containing the tweets of a certain topic
+  #to_countries is a pandas.core.frame.DataFrame : Each element
+  Lists_Topics = [[] for i in range(no_topics)]
+  for i in range (no_topics):
+    Lists_Topics[i] = pd.read_csv(path_to_folder+"Topic_"+str(i)+".csv")[['text']]
+  return Lists_Topics
 
 
+#find the different distinations mentionned in the different topics
+def find_destinations (Lists_Topics,countries):
+    #Lists_Topics is a list : each element is a dataframe containing the tweets of a certain topic
+    #to_countries is a pandas.core.frame.DataFrame : Each element
+    #of the column "Name" is a 'to + country'
 
+    #returns a list of lists : each element(list) contains tuples (a,b) where a is the number of 
+    #occurences of b ( to + country) in the topic corresponding to the elemnt 
+    
+    destinations = [[] for i in range(len(Lists_Topics))]
+    # We only need the column "Name" containing the names of the countries 
+    countries = countries[['Name']]
+    to_countries = countries.Name 
+    for e in to_countries:
+        for i in range(len(Lists_Topics)):
+              if e == ' to United States' : 
+                  destinations[i].append((len(Lists_Topics[i][Lists_Topics[i]['text'].str.contains('to the united states| to the usa')]),e))
+              elif e == ' to United Kingdom' :
+                  destinations[i].append((len(Lists_Topics[i][Lists_Topics[i]['text'].str.contains('to the united kingdom| to the uk')]),e))
+
+              else :
+                  destinations[i].append((len(Lists_Topics[i][Lists_Topics[i]['text'].str.contains(e.lower())]),e))
+    return destinations
+
+
+#Plots a histogram showing the top destinations in each topic
+def plot_destinations(destinations):
+      #destinations is  a list of lists : each element(list) contains tuples (a,b) where a is the number of 
+      #occurences of b ( to + country) in the topic corresponding to the elemnt 
+      counters = [{} for i in range(len(destinations))]
+      for i in range (len(destinations)) :
+          for j in range (len(destinations[i])):
+               counters[i] = Counter({destinations[i][j][1]:destinations[i][j][0] for j in range(len(destinations[i]))})
+      for elt in counters :    
+        Top_destinations=dict(itertools.islice(dict(elt.most_common()[:9]).items(),10))
+        Top_destinations_df = pd.DataFrame.from_dict(Top_destinations, orient='index')
+        Top_destinations_df.plot(kind='bar')
+        
+
+from os import listdir
+from os.path import isfile, join
+# fusion multiple csv files
+def fusion(path,title):
+
+    files = [f for f in listdir(path) if isfile(join(path, f))]
+    
+    data = pd.DataFrame()
+    for file in files:
+        data = pd.concat([data, dataframe_from_file(path + file)])
+    
+    data.to_csv("data/" + title + ".csv")
+    return data
     
 
 if __name__ == "__main__":
+    #fusion data
+    path = "../data/"
+    title = "data"
     
-    ## TODO = ADD distinations to topic modeling (every topics gets destination we talk about)
-    ## try distinations of same country = same word and change weight...
-    ## visualisation
-    
-    
+    df = fusion(path,title)
     
     # reading the data
-    df = dataframe_from_file("stream_tweets_Week4_181k.csv") # put the path corresponding to the file
-    #df = pd.read_csv('results/Topic 0_4.csv')
+        #df = dataframe_from_file("stream_tweets_Week4_181k.csv") # put the path corresponding to the file
+        #df = pd.read_csv('results/Topic 0_4.csv')
     col = 'text' # the column where tweets are sotored
+    col_processed = col+"_processed"
     
     # Cleaning the data
     df = cleanData(df, col)
     
-
-    # Visualise the most common words
-    wordBarGraphFunction(df, col)
-
-
     # data processed (lemmatize_stemming)
     df_processed = df.copy()
-    df_processed[col] = df_processed[col].apply(preprocess)
-
+    df_processed[col_processed] = df_processed[col].apply(preprocess)
+    
+    # Visualise the most common words
+    wordBarGraphFunction(df, col)
+    wordcloud_data(df, col)
     
     # paramerters
     no_topics = 5
     no_features = 1000
     no_top_words = 10
     save = True
+    model = "NMF"
     
     
-    # display topics
-    print("TOPICS FOUND USING NMF")
-    print("--------------------------")
-
-    Nmf_model, Nmf_model_fitted, tfidf_feature_names, tfidf = nmf = NMF_model(df_processed, col, no_features)
     
-    
-    display_topics(Nmf_model_fitted, tfidf_feature_names, no_top_words)
-    clusters = get_clusters(Nmf_model_fitted, tfidf,save)
-    get_topics(df, clusters,no_topics, save)
-    
+    if model == "NMF":
+        # display topics
+        print("TOPICS FOUND USING NMF")
+        Nmf_model, Nmf_model_fitted, tfidf_feature_names, tfidf = nmf = NMF_model(df_processed, col_processed, no_features)
+        display_topics(Nmf_model_fitted, tfidf_feature_names, no_top_words)
+        clusters = get_clusters(Nmf_model_fitted, tfidf,save)
+        get_topics(df, clusters,no_topics, save)
+        nmf_weights = Nmf_model.components_
+        topics = get_topics_terms_weights(nmf_weights, tfidf_feature_names)
+        print_topics_udf(topics, total_topics=no_topics, num_terms=30, display_weights=True)
+        topics_display_list = get_topics_udf(topics, total_topics=2, num_terms=30)
         
-    nmf_weights = Nmf_model.components_
-    topics = get_topics_terms_weights(nmf_weights, tfidf_feature_names)
-    print_topics_udf(topics, total_topics=no_topics, num_terms=30, display_weights=True)
-    topics_display_list = get_topics_udf(topics, total_topics=2, num_terms=30)
     
-    
-    
-    print("TOPICS FOUND USING LDA")
-    print("--------------------------") 
-    Lda_model_fitted, tf_feature_names, tf = LDA_model(df, col, no_features)
-    
-    topic_of_tweets = np.argmax(Lda_model_fitted.transform(tf), axis=1)
-    display_topics(Lda_model_fitted, tf_feature_names, no_top_words)
-    
+    elif model == "LDA":
+        print("TOPICS FOUND USING LDA")
+        Lda_model_fitted, tf_feature_names, tf = LDA_model(df, col_processed, no_features)
+        topic_of_tweets = np.argmax(Lda_model_fitted.transform(tf), axis=1)
+        display_topics(Lda_model_fitted, tf_feature_names, no_top_words)
+        
+        pyLDAvis.sklearn.prepare(lda, tf, tf_vectorizer)
 
     
     
+    #destinations :
+    ##Load the csv file containing the different countries :
+    countries = pd.read_csv("data_csv.csv")# put the path corresponding to the file
     
+    ## TO + Country gives more insights about the destinations 
+    countries['Name'] = 'to ' + countries['Name'] 
+    
+    ##Each element of Lists_Topics is a dataframe containing a given topic
+    Lists_Topics = load_tweets(no_topics)
+    
+    ##List of lists : each element(list) contains tuples (a,b) where a is the number of occurences of b ( to + country) in the topic corresponding to the elemnt
+    destinations = find_destinations(Lists_Topics,countries)
+    
+    ##Plotting the top destinations in each topic
+    plot_destinations(destinations)
     
 
     
