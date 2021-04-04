@@ -593,12 +593,11 @@ if __name__ == "__main__":
     no_features = 1000
     no_top_words = 10
     save = True
-    model = "NMF"
+    model = ["NMF"]
     
     
     
-    if model == "NMF":
-        # display topics
+    if "NMF" in model:
         print("TOPICS FOUND USING NMF")
         Nmf_model, Nmf_model_fitted, tfidf_feature_names, tfidf = nmf = NMF_model(df_processed, col_processed, no_features)
         display_topics(Nmf_model_fitted, tfidf_feature_names, no_top_words)
@@ -610,7 +609,7 @@ if __name__ == "__main__":
         topics_display_list = get_topics_udf(topics, total_topics=2, num_terms=30)
         
     
-    elif model == "LDA":
+    if "LDA" in model:
         print("TOPICS FOUND USING LDA")
         Lda_model_fitted, tf_feature_names, tf = LDA_model(df, col_processed, no_features)
         topic_of_tweets = np.argmax(Lda_model_fitted.transform(tf), axis=1)
