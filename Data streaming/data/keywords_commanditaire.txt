@@ -1,0 +1,12 @@
+booking flight
+destination flight
+destination travel
+vacation flight
+vacation travel
+domestic flight
+international flight
+flight reservation
+business flight
+business travel
+leisure flight
+leisure travel
