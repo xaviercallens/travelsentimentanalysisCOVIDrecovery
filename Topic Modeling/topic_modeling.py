@@ -1130,13 +1130,13 @@ if __name__ == "__main__":
     no_features = 1000
     no_top_words = 10
 
-    ntweets = 20
+    #ntweets = 20
     model = ["NMF"]
 
     
     if "BERT" in model:
         method = "LDA_BERT"
-        tweets = df_processed.iloc[:ntweets,: ]
+        tweets = df_processed
         samp_size = len(tweets)
 
         ##create pandas data frame with all abstracts, use as input corpus
