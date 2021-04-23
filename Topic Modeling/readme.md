@@ -17,7 +17,7 @@ before using our code, these libraries should be installed :
   - !pip install language_detector
   - !pip install symspellpy
   - !pip install sentence_transformers
-
+  - !pip install wordcloud
 
 ## Usage
 these are the principal parameters to change before running the code :
