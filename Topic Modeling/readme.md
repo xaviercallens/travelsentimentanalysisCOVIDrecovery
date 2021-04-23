@@ -25,4 +25,6 @@ these are the principal parameters to change before running the code :
 - the path where we store the data : path = "../data/"
 - number of topics : ntopic = 5
 - A list of models to apply : model = ["NMF"]
+
 We used pandas 1.2.4.
+The notebook is prepared to use in colab
