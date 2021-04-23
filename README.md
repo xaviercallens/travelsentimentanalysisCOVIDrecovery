@@ -6,10 +6,6 @@ Les tweets sont téléchargés à partir du dossier "Collected tweets/".
 
 La récolte de tweets se fait en exécutant le fichier configuration.py. Les différents paramètres de streaming peuvent être modifiés dans la classe Configuration.
 
-## Topic modeling
-
-
-
 ## Analyse de sentiment
 
 L'analyse de sentiment est effectué dans le dossier "Sentiment/Génération des résultats/". Il y a 3 modèles, chacun donnant son nom à un notebook du dossier : Multinomial Naive Bayes, TextBlob et LSTM1. Un notebook d'un modèle prédit les sentiments de chaque tweets stockés dans le fichier spécifié (le nom est à spécifier dans le notebook). Ces sentiments sont sauvegardés dans un fichier sous forme d'un tableau numpy.
