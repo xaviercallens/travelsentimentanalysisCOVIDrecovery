@@ -10,7 +10,7 @@ def decode_strlist_utf8(lst):
     return [s.decode('utf-8') for s in eval(lst)]
 
 def dataframe_from_file(filename):
-    with open(filename, 'r') as f:
+    with open(filename, 'r', errors="ignore") as f:
         df = pd.read_csv(f, error_bad_lines=False, converters={
             'text': decode_utf8,
             'country': decode_utf8,

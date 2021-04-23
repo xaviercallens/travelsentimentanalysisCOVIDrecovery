@@ -1,57 +1,641 @@
-# import the different libraries needed
-
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
-import nltk
-import os
-import json
-from tqdm import tqdm
-from nltk.corpus import wordnet, stopwords 
-import re
+# %% import libraries needed
+import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-import gensim
-from gensim.utils import simple_preprocess
-from gensim import corpora, models
-from gensim.parsing.preprocessing import STOPWORDS
+import seaborn as sns
+import os
+
+import re
+
+import nltk
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from nltk.corpus import wordnet, stopwords
 from nltk.stem import WordNetLemmatizer, SnowballStemmer
 from nltk.stem.porter import *
-import datetime
-import time
+from nltk.corpus import wordnet
+from nltk.tokenize import word_tokenize
+
+
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.decomposition import NMF, LatentDirichletAllocation
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-import seaborn as sns
-%matplotlib inline
-from mpl_toolkits.mplot3d import Axes3D
-from collections import Counter
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import silhouette_score
-import umap
-from wordcloud import WordCloud,STOPWORDS
+from sklearn.cluster import KMeans
+
+import pyLDAvis
+import pyLDAvis.sklearn
+
+from collections import Counter
+import itertools
+from wordcloud import WordCloud, STOPWORDS
+
+from tqdm import tqdm
+
+import gensim
+from gensim import corpora, models
+from gensim.utils import simple_preprocess
+from gensim.parsing.preprocessing import STOPWORDS
 from gensim.models.coherencemodel import CoherenceModel
-from stop_words import get_stop_words
-from nltk.tokenize import word_tokenize
-from language_detector import detect_language
-import pkg_resources
-from symspellpy import SymSpell, Verbosity
+
 import keras
 from keras.layers import Input, Dense
 from keras.models import Model
-from sklearn.model_selection import train_test_split
+
+import time
+from mpl_toolkits.mplot3d import Axes3D
+import umap
+
+from stop_words import get_stop_words
+from language_detector import detect_language
+import pkg_resources
+from symspellpy import SymSpell, Verbosity
+
 import warnings
+
 warnings.filterwarnings('ignore')
 warnings.filterwarnings('ignore', category=Warning)
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import KMeans
-from gensim import corpora
+
 from datetime import datetime
 import pickle
-import argparse
+
+from sentence_transformers import SentenceTransformer
 
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
+sns.set_style('whitegrid')
 
 from read_file import * # import functions used to read data files
 
+# %%
+def cleanTxt(text):
+    """
+    Function to clean str text
+    
+    Parameters
+    ----------
+    text : str
+        text before cleaning.
 
+    Returns
+    -------
+    text : str
+        text after cleaning.
+
+    """
+    # regular expressions to recognize 'USA' (to prevent the confusion of us and US)
+    text = re.sub(r'@US+([^a-z]|$)','usa ',text)
+    text = re.sub(r'@us+([^a-z]|$)','usa ',text)
+    text = re.sub(r'@Us+([^a-z]|$)','usa ',text)
+    text = re.sub(r'@uS+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#US+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#us+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#Us+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#uS+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#U.S.A+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#U.S+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#u.s+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#u.S+([^a-z]|$)','usa ',text)
+    text = re.sub(r'#U.s+([^a-z]|$)','usa ',text)
+    text = re.sub(r'US+([^a-z]|$)','usa ',text)
+    text = re.sub(r'U.S+([^a-z]|$)','usa ',text)
+    text = re.sub(r'U.s+([^a-z]|$)','usa ',text)
+    text = re.sub(r'u.s+([^a-z]|$)','usa ',text)
+    text = re.sub(r'u.S+([^a-z]|$)','usa ',text)
+    
+    text = text.lower() # Convert to lowercase
+    text = re.sub(r'@','',text) # Remove @ without the word 
+    text = re.sub(r'&.+;','',text) #remove html special entities (&amp; ...)
+    text = re.sub(r'\n',' ',text) # Remove \n (newline)
+    text = re.sub(r'\t',' ',text) # Remove \t (newtab)
+    text = re.sub(r'#','',text) # Remove the # symbol
+    text = re.sub(r'RT[\s]+','',text) # Remove RT (retweet)
+    text = re.sub(r'http?:\/\/\S+','',text) # Remove the hyper link
+    text = re.sub(r'https?:\/\/\S+','',text)
+    text = re.sub(' +', ' ', text) # remove multiple whitespace from text 
+    text = re.sub(r'travel+([^a-z]|$)',' ',text) # Remove 'travel' the principal keyword in our data only
+    text = re.sub('(?:\s)travel[^, ]*', '', text)
+    text = re.sub(r'travelling','traveling',text) # travelling -> traveling
+    text = re.sub(r'coronavirus','covid',text) # coronavirus -> covid
+    text = re.sub(r'corona virus','covid',text) # coronavirus -> covid
+    text = re.sub(r'covid 19','covid',text) 
+    text = re.sub(r'covid-19','covid',text) 
+    text = re.sub(r'covid_19','covid',text) 
+    text = re.sub(r'covid19','covid',text) 
+    text = re.sub(r'-',' ',text) # Remove @ without the word
+    text = re.sub(r'_',' ',text) # Remove @ without the word
+    text = re.sub(' +', ' ', text) # remove multiple whitespace from text
+    return text
+
+
+
+def cleanData(df, col):
+    """
+    Function to clean df : pandas.core.frame.DataFrame
+    
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        data before cleaning.
+    col : str
+        column where tweets are stored.
+
+    Returns
+    -------
+    df : pandas.core.frame.DataFrame
+        data after cleaning.
+
+    """
+    
+    
+    
+    df[col] = df[col].map(lambda x: re.sub('[,\.!?"]', '', x)) # Remove punctuation
+    #df[col]= df[col].map(lambda x: x.lower()) # Convert to lowercase
+    
+    # apply clenTxt defined before on the data
+    df[col] = df[col].apply(cleanTxt)
+    
+    # remove emojis
+    df[col] = df[col].apply(lambda x: x.encode('ascii', 'ignore').decode('ascii'))
+    
+    
+    # Note : We don't drop NaN and Empty rows to conserve the original IDs of tweets
+    # the commented code below drops NaN rows
+    """
+    # Drop NaN
+    #nan_value = float("NaN")
+    #df.replace("", nan_value, inplace=True)
+    #df.dropna(subset = [col], inplace=True)
+    #df = df.reset_index(drop=True)
+    """
+    
+    return df
+    
+
+
+def wordcloud_data(df, col, save):
+    """
+    Shows the wordcloud of the data
+    
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        data.
+    col : str
+        column where tweets are stored.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    # Join the different processed titles together.
+    long_string = ','.join(list(df[col].values))
+    # Create a WordCloud object
+    wordcloud = WordCloud(background_color="white", max_words=10000, contour_width=10, contour_color='steelblue')
+    # Generate a word cloud
+    wordcloud.generate(long_string)
+    #wordcloud.to_image()
+    plt.figure( figsize=(50,20), facecolor='k')
+    plt.imshow(wordcloud)
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    plt.show()
+    if save:
+        wordcloud.to_file("results/wordcloud.png")
+
+def wordBarGraphFunction(df,column,save):
+    """
+
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        data (preferd cleaned one).
+    col : str
+        column where tweets are stored.
+
+    Returns
+    -------
+    None.
+
+    """
+    topic_words = [ z.lower() for y in
+                       [ x.split() for x in df[column] if isinstance(x, str)]
+                       for z in y]
+    word_count_dict = dict(Counter(topic_words))
+    popular_words = sorted(word_count_dict, key = word_count_dict.get, reverse = True)
+    popular_words_nonstop = [w for w in popular_words if w not in STOPWORDS]
+    plt.barh(range(20), [word_count_dict[w] for w in reversed(popular_words_nonstop[0:20])])
+    plt.yticks([x + 1 for x in range(20)], reversed(popular_words_nonstop[0:20]))
+    plt.title("Most common words")
+    if save:
+        plt.savefig("results/Most common words.png")
+    plt.show()
+    
+
+
+
+def lemmatize(text):
+    """
+    Stemmers remove morphological affixes from words, leaving only the word stem.
+    <Lemmatization is similar to stemming but it brings context to the words>
+    <Lemmatization gives interesting results but still very slow to use>
+    <we don't use this function in our implementation of models!!>
+    # https://www.geeksforgeeks.org/python-lemmatization-approaches-with-examples/
+
+
+    Parameters
+    ----------
+    text : str
+    Returns
+    -------
+    str
+        text after lemmatizing.
+    """
+      
+    wnl = WordNetLemmatizer()
+    stemmer = PorterStemmer()
+    wnl = WordNetLemmatizer()
+      
+    # Define function to lemmatize each word with its POS tag 
+      
+    # POS_TAGGER_FUNCTION : TYPE 1 
+    def pos_tagger(nltk_tag): 
+        if nltk_tag.startswith('J'): 
+            return wordnet.ADJ 
+        elif nltk_tag.startswith('V'): 
+            return wordnet.VERB 
+        elif nltk_tag.startswith('N'): 
+            return wordnet.NOUN 
+        elif nltk_tag.startswith('R'): 
+            return wordnet.ADV 
+        else:           
+            return None
+            
+    # tokenize the sentence and find the POS tag for each token 
+    pos_tagged = nltk.pos_tag(nltk.word_tokenize(text))   
+    # we use our own pos_tagger function to make things simpler to understand. 
+    wordnet_tagged = list(map(lambda x: (x[0], pos_tagger(x[1])), pos_tagged)) 
+      
+    lemmatized_sentence = [] 
+    for word, tag in wordnet_tagged: 
+        if tag is None: 
+            # if there is no available tag, append the token as is 
+            lemmatized_sentence.append(word) 
+        else:         
+            # else use the tag to lemmatize the token 
+            lemmatized_sentence.append(wnl.lemmatize(word, tag)) 
+    lemmatized_sentence = " ".join(lemmatized_sentence) 
+      
+    return lemmatized_sentence
+
+    
+
+def lemmatize_steming(text):
+    """
+    Stemmers remove morphological affixes from words, leaving only the word stem.
+    <Lemmatization is similar to stemming but it brings context to the words>
+    
+    Fast way to lemmatizing and stemming : (we only lemmitize verbs)
+
+    Parameters
+    ----------
+    text : str
+           (only one word !!!)
+    Returns
+    -------
+    str
+        text after stemming.
+        (only one word !!!)
+    """
+    
+    stemmer = PorterStemmer()
+    wnl = WordNetLemmatizer()
+    return stemmer.stem(wnl.lemmatize(text, pos='v')) #v -> verb
+
+def preprocess(text):
+    """
+    Function that we can apply to DataFrame to clean text
+
+    Parameters
+    ----------
+    text : str
+
+    Returns
+    -------
+    result : str
+        string after applying lemmatize_steming and deleting stop_words
+
+    """
+    result = ""
+    for token in simple_preprocess(text):
+        if token not in STOPWORDS and len(token) > 3:
+            result = result + " " + lemmatize_steming(token)
+    return result
+
+
+def NMF_model(df, col, no_features):
+    """
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        data (preferd cleaned one).
+    col : str
+        column where tweets are stored.
+    no_features : int
+        number of clusters (number of topics).
+
+    Returns
+    -------
+    Nmf_model : sklearn.decomposition._nmf.NMF
+        NMF model
+    Nmf_model.fit(tfidf) : sklearn.decomposition._nmf.NMF
+        NMF model
+    tfidf_feature_names : list
+        list of words in data
+    tfidf : scipy.sparse.csr.csr_matrix
+        matrix storing tfidf of the our data
+    """
+    # NMF is able to use tf-idf
+    tfidf_vectorizer = TfidfVectorizer(max_df=0.9, min_df=2, max_features=no_features, stop_words='english')
+    tfidf = tfidf_vectorizer.fit_transform(df[col])
+    tfidf_feature_names = tfidf_vectorizer.get_feature_names()
+    Nmf_model = NMF(n_components=ntopic, random_state=1, alpha=.1, l1_ratio=.5, init='nndsvd')
+    
+    return Nmf_model, Nmf_model.fit(tfidf), tfidf_feature_names, tfidf
+    
+    
+def LDA_model(df, col, no_features):
+    """
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+        data (preferd cleaned one).
+    col : str
+        column where tweets are stored.
+    no_features : int
+        number of clusters (number of topics).
+
+    Returns
+    -------
+    Lda_model.fit(tf): sklearn.decomposition._lda.LatentDirichletAllocation
+        NMF model
+    tf_feature_names : list
+        list of words in data
+    tf : scipy.sparse.csr.csr_matrix
+        matrix storing tf of the our data
+    """
+    # LDA can only use raw term counts for LDA because it is a probabilistic graphical model
+    tf_vectorizer = CountVectorizer(max_df=0.9, min_df=5, max_features=no_features, stop_words='english')
+    tf = tf_vectorizer.fit_transform(df[col])
+    tf_feature_names = tf_vectorizer.get_feature_names()
+    Lda_model = LatentDirichletAllocation(n_components=ntopic, max_iter=5, learning_method='online', learning_offset=50.,random_state=0)
+    
+    return Lda_model, Lda_model.fit(tf), tf_feature_names, tf, tf_vectorizer
+    
+    
+
+def display_topics(save, model, feature_names, no_top_words):
+    """
+    display topics results of LDA or NMF
+
+    Parameters
+    ----------
+    model : 
+        NMF or LDA model
+    feature_names : list
+        
+    no_top_words : TYPE
+        number of words to show in a topic
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    if save:
+        if not os.path.exists('results/topics.txt'):
+            with open('results/topics.txt', 'w'): pass
+        
+        f = open('results/topics.txt', 'w')
+        
+        for topic_idx, topic in enumerate(model.components_):
+            print("Topic %d:" % (topic_idx))
+            f.write("Topic %d:" % (topic_idx))
+            
+            print(" ".join([feature_names[i]
+                        for i in topic.argsort()[:-no_top_words - 1:-1]]))
+            f.write(" ".join([feature_names[i]
+                        for i in topic.argsort()[:-no_top_words - 1:-1]]))
+            
+            f.write("\n")
+        f.close()
+    else:
+        for topic_idx, topic in enumerate(model.components_):
+            print("Topic %d:" % (topic_idx))
+            print(" ".join([feature_names[i]
+                            for i in topic.argsort()[:-no_top_words - 1:-1]]))
+    
+    
+        
+def get_clusters(model, tf, save, name="clusters"):
+    """
+    this function calculates a matrix where (i,j) is true if the tweet i is in the topic j otherwise it's false
+    shape of the matrix is (number of tweets, number of topics)
+    Parameters
+    ----------
+    model : 
+        NMF or LDA model.
+    tf : scipy.sparse.csr.csr_matrix
+        matrix storing tf of the our data
+    save : bool
+        if save is true we save results in a file name.csv
+    name : str, optional
+        the name of the file where we save the results. The default is "clusters".
+
+    Returns
+    -------
+    T : numpy array.
+
+    """
+    m = model.transform(tf)
+    maxx = np.max(m, axis=1)
+    T = m==maxx[:,None]
+    
+    for i in range(len(T)):
+        if np.sum(T[i])>1 :
+            T[i] = [0]*len(T[0])
+            
+    if save:
+        np.savetxt("results/" + name+".csv", T, delimiter=",")
+        
+    return T
+    
+def get_topics(df,clusters,n,save):
+    """
+    This function saves the tweets of each topic in separate files 
+
+    Parameters
+    ----------
+    df : pandas.core.frame.DataFrame
+         data not cleaned prefered.
+    clusters : numpy array
+        numpy array results of the function get_clusters().
+    n : int
+        number of topics.
+    save : bool
+        if save is true we save results in a files
+
+    Returns
+    -------
+    l : TYPE
+        DESCRIPTION.
+
+    """
+    clusters = pd.DataFrame(clusters,columns = ['Topic_'+str(i) for i in range(n)])
+    l = []
+    for i in range(n):
+        l.append(df[clusters['Topic_'+str(i)] ==1])
+        if save:
+            l[i].to_csv('results/Topic_'+str(i)+".csv")
+    
+    l.append(df[np.sum(clusters.iloc[:],axis = 1) == 0])
+    l[-1].to_csv("results/Non_classified.csv")
+
+
+
+
+# get topics with their terms and weights
+def get_topics_terms_weights(weights, feature_names):
+    feature_names = np.array(feature_names)
+    sorted_indices = np.array([list(row[::-1]) for row in np.argsort(np.abs(weights))])
+    sorted_weights = np.array([list(wt[index]) for wt, index in zip(weights, sorted_indices)])
+    sorted_terms = np.array([list(feature_names[row]) for row in sorted_indices])
+
+    topics = [np.vstack((terms.T, term_weights.T)).T for terms, term_weights in zip(sorted_terms, sorted_weights)]
+
+    return topics
+
+
+# prints components of all the topics
+# obtained from topic modeling
+def print_topics_udf(topics, total_topics=1,
+                     weight_threshold=0.0001,
+                     display_weights=False,
+                     num_terms=None):
+    
+    for index in range(total_topics):
+        topic = topics[index]
+        topic = [(term, float(wt))
+                 for term, wt in topic]
+        #print(topic)
+        topic = [(word, round(wt,2))
+                 for word, wt in topic
+                 if abs(wt) >= weight_threshold]
+
+        if display_weights:
+            print('Topic #'+str(index)+' with weights')
+            print(topic[:num_terms]) if num_terms else topic
+        else:
+            print('Topic #'+str(index)+' without weights')
+            tw = [term for term, wt in topic]
+            print(tw[:num_terms]) if num_terms else tw
+            
+
+# prints components of all the topics
+# obtained from topic modeling
+def get_topics_udf(topics, total_topics=1,
+                     weight_threshold=0.0001,
+                     num_terms=None):
+
+    topic_terms = []
+
+    for index in range(total_topics):
+        topic = topics[index]
+        topic = [(term, float(wt))
+                 for term, wt in topic]
+        #print(topic)
+        topic = [(word, round(wt,2))
+                 for word, wt in topic
+                 if abs(wt) >= weight_threshold]
+
+        topic_terms.append(topic[:num_terms] if num_terms else topic)
+
+    return topic_terms
+
+
+#Load the csv file containing the different countries :
+def load_tweets(ntopic,path_to_folder="results/"):
+  #num_top is the number of topics
+  #path_to_folder : the path to the folder containing the different tweets of each topic
+  #returns a list where each element is a dataframe containing the tweets of a certain topic
+  #to_countries is a pandas.core.frame.DataFrame : Each element
+  Lists_Topics = [[] for i in range(ntopic)]
+  for i in range (ntopic):
+    Lists_Topics[i] = pd.read_csv(path_to_folder+"Topic_"+str(i)+".csv")[['text']]
+  return Lists_Topics
+
+
+#find the different distinations mentionned in the different topics
+def find_destinations (Lists_Topics,countries):
+    #Lists_Topics is a list : each element is a dataframe containing the tweets of a certain topic
+    #to_countries is a pandas.core.frame.DataFrame : Each element
+    #of the column "Name" is a 'to + country'
+
+    #returns a list of lists : each element(list) contains tuples (a,b) where a is the number of 
+    #occurences of b ( to + country) in the topic corresponding to the elemnt 
+    
+    destinations = [[] for i in range(len(Lists_Topics))]
+    # We only need the column "Name" containing the names of the countries 
+    countries = countries[['Name']]
+    to_countries = countries.Name 
+    for e in to_countries:
+        for i in range(len(Lists_Topics)):
+              if e == ' to United States' : 
+                  destinations[i].append((len(Lists_Topics[i][Lists_Topics[i]['text'].str.contains('to the united states| to the usa')]),e))
+              elif e == ' to United Kingdom' :
+                  destinations[i].append((len(Lists_Topics[i][Lists_Topics[i]['text'].str.contains('to the united kingdom| to the uk')]),e))
+
+              else :
+                  destinations[i].append((len(Lists_Topics[i][Lists_Topics[i]['text'].str.contains(e.lower())]),e))
+    return destinations
+
+
+#Plots a histogram showing the top destinations in each topic
+def plot_destinations(destinations):
+      #destinations is  a list of lists : each element(list) contains tuples (a,b) where a is the number of 
+      #occurences of b ( to + country) in the topic corresponding to the elemnt 
+      counters = [{} for i in range(len(destinations))]
+      for i in range (len(destinations)) :
+          for j in range (len(destinations[i])):
+               counters[i] = Counter({destinations[i][j][1]:destinations[i][j][0] for j in range(len(destinations[i]))})
+      for elt in counters :    
+        Top_destinations=dict(itertools.islice(dict(elt.most_common()[:9]).items(),10))
+        Top_destinations_df = pd.DataFrame.from_dict(Top_destinations, orient='index')
+        Top_destinations_df.plot(kind='bar')
+        
+
+from os import listdir
+from os.path import isfile, join
+
+
+#%%
+def save_topics(n,df,vect,samp_size,save):
+    m = np.zeros((samp_size,np.max(vect)+1))
+    for i in range(samp_size):
+        m[i,vect[i]] = 1
+    clusters = pd.DataFrame(m,columns = ['Topic_'+str(i) for i in range(n)])
+    l = []
+    for i in range(n):
+        l.append(df[clusters['Topic_'+str(i)] ==1])
+        if save:
+            l[i].to_csv('results/Topic_'+str(i)+".csv")
+    
 
 def get_topic_words(token_lists, labels, k=None):
     """
@@ -159,51 +743,6 @@ def get_wordcloud(model, token_lists, topic):
     plt.tight_layout(pad=0)
     print('Getting wordcloud for topic {}. Done!'.format(topic))
   
-#SymSpel is used for spelling correction and fuzzy string search.
-def sym():
-    sym_spell = SymSpell(max_dictionary_edit_distance=3, prefix_length=7)
-    dictionary_path = pkg_resources.resource_filename(
-        "symspellpy", "frequency_dictionary_en_82_765.txt")
-    if sym_spell.word_count:
-        pass
-    else:
-        sym_spell.load_dictionary(dictionary_path, term_index=0, count_index=1)
-
-# lowercase + base filter
-# some basic normalization
-def f_base(s):
-    """
-    :param s: string to be processed
-    :return: processed string: see comments in the source code for more info
-    """
-    # normalization 1: xxxThis is a --> xxx. This is a (missing delimiter)
-    s = re.sub(r'([a-z])([A-Z])', r'\1\. \2', s)  # before lower case
-    # normalization 2: lower case
-    s = s.lower()
-    # normalization 3: "&gt", "&lt"
-    s = re.sub(r'&gt|&lt', ' ', s)
-    # normalization 4: letter repetition (if more than 2)
-    s = re.sub(r'([a-z])\1{2,}', r'\1', s)
-    # normalization 5: non-word repetition (if more than 1)
-    s = re.sub(r'([\W+])\1{1,}', r'\1', s)
-    # normalization 6: string * as delimiter
-    s = re.sub(r'\*|\W\*|\*\W', '. ', s)
-    # normalization 7: stuff in parenthesis, assumed to be less informal
-    s = re.sub(r'\(.*?\)', '. ', s)
-    # normalization 8: xxx[?!]. -- > xxx.
-    s = re.sub(r'\W+?\.', '.', s)
-    # normalization 9: [.?!] --> [.?!] xxx
-    s = re.sub(r'(\.|\?|!)(\w)', r'\1 \2', s)
-    # normalization 10: ' ing ', noise text
-    s = re.sub(r' ing ', ' ', s)
-    # normalization 11: noise text
-    s = re.sub(r'product received for free[.| ]', ' ', s)
-    # normalization 12: phrase repetition
-    s = re.sub(r'(.{2,}?)\1{1,}', r'\1', s)
-
-    return s.strip()
-
-
 # detect the used language 
 def f_lan(s):
     """
@@ -212,7 +751,7 @@ def f_lan(s):
     """
 
     # some reviews are actually english but biased toward french
-    return detect_language(s) in {'English', 'French','Spanish','Chinese'}
+    return detect_language(s) in {'English'}
 
 
 ###############################
@@ -313,9 +852,15 @@ def preprocess_sent(rw):
     :param rw: review to be processed
     :return: sentence level pre-processed review
     """
-    s = f_base(rw)
-    if not f_lan(s):
-        return None
+    # normalization 2: lower case
+    s = rw.lower()
+    # remove punctuations
+    s = re.sub('[,\.!?"]', '', s)
+    # apply clenTxt defined before on the data
+    s = cleanTxt(s)
+     # remove emojis
+    s = s.encode('ascii', 'ignore').decode('ascii')
+
     return s
 
 
@@ -329,9 +874,9 @@ def preprocess_word(s):
     if not s:
         return None
     w_list = word_tokenize(s)
-    w_list = f_punct(w_list)
-    w_list = f_noun(w_list)
-    w_list = f_typo(w_list)
+    #w_list = f_punct(w_list)
+    #w_list = f_noun(w_list)
+    #w_list = f_typo(w_list)
     w_list = f_stem(w_list)
     w_list = f_stopw(w_list)
 
@@ -379,7 +924,7 @@ class Autoencoder:
                                         shuffle=True,
                                         validation_data=(X_test, X_test), verbose=0)
         
-def preprocess(docs, samp_size=None):
+def preprocess_bert(docs, samp_size=None):
     """
     Preprocess the data
     """
@@ -392,15 +937,15 @@ def preprocess(docs, samp_size=None):
     token_lists = []  # word level preprocessed
     idx_in = []  # index of sample selected
     #     samp = list(range(100))
-    samp = np.random.choice(n_docs, samp_size)
-    for i, idx in enumerate(samp):
-        sentence = preprocess_sent(docs[idx])
+    
+    for i in range(n_docs):
+        sentence = preprocess_sent(docs[i])
         token_list = preprocess_word(sentence)
-        if token_list:
-            idx_in.append(idx)
-            sentences.append(sentence)
-            token_lists.append(token_list)
-        #print('{} %'.format(str(np.round((i + 1) / len(samp) * 100, 2))), end='\r')
+        if not token_list: token_list = ['None']
+        idx_in.append(i)
+        sentences.append(sentence)
+        token_lists.append(token_list)
+        print('{} %'.format(str(np.round((i + 1) / samp_size * 100, 2))), end='\r')
     print('Preprocessing raw texts. Done!')
     return sentences, token_lists, idx_in
 
@@ -473,7 +1018,6 @@ class Topic_Model:
         elif method == 'BERT':
 
             print('Getting vector representations for BERT ...')
-            from sentence_transformers import SentenceTransformer
             model = SentenceTransformer('bert-base-nli-max-tokens')
             vec = np.array(model.encode(sentences, show_progress_bar=True))
             print('Getting vector representations for BERT. Done!')
@@ -482,9 +1026,13 @@ class Topic_Model:
              
         elif method == 'LDA_BERT':
         #else:
+            a = []
             vec_lda = self.vectorize(sentences, token_lists, method='LDA')
+            a.append(vec_lda)
             vec_bert = self.vectorize(sentences, token_lists, method='BERT')
+            a.append(vec_bert)
             vec_ldabert = np.c_[vec_lda * self.gamma, vec_bert]
+            a.append(vec_ldabert)
             self.vec['LDA_BERT_FULL'] = vec_ldabert
             if not self.AE:
                 self.AE = Autoencoder()
@@ -554,47 +1102,109 @@ class Topic_Model:
             lbs = self.cluster_model.predict(vec)
         return lbs
 
+# %%
 if __name__ == "__main__":
+    # reading the data
+    path = "../data/" # path where we store the data
     
+    files = [path + f for f in listdir(path) if isfile(join(path, f))]
+    df = dataframe_from_mult_files(files)
     
-    method = "LDA_BERT"
-    samp_size = 51000
-    ntopic = 6
-    ntweets = 20
+    #df = dataframe_from_file("stream_tweets_Week4_181k.csv") # put the path corresponding to the file
+    #df = pd.read_csv('results/Topic 0_4.csv')
     
-    #parser = argparse.ArgumentParser(description='contextual_topic_identification tm_test:1.0')
+    col = "text" # the column where tweets are sotored
+    col_processed = col + "_processed" # we store in this column prcessed text
+    print(1)
+    # Cleaning the data
+    df = cleanData(df, col)
+    print(2)
+    # data processed (lemmatize_stemming)
+    df_processed = df.copy()
+    df_processed[col_processed] = df_processed[col].apply(preprocess)
+    print(3)
+    # If true save all results in results folder
+    save = True
+    # Visualise the most common words
+    wordBarGraphFunction(df, col, save)
+    wordcloud_data(df, col, save)
     
-    #parser.add_argument('--fpath', default='/kaggle/working/train.csv')
-    #parser.add_argument('--ntopic', default=10,)
-    #parser.add_argument('--method', default='TFIDF')
-    #parser.add_argument('--samp_size', default=20500)
+    # paramerters
+    ntopic = 5 # number of topics
+    no_features = 1000
+    no_top_words = 10
+
+    #ntweets = 20
+    model = ["NMF"]
+
     
-    #args = parser.parse_args()
-    tweets = dataframe_from_file("stream_tweets_Week4_181k.csv")[:20] # put the path corresponding to the file
-    tweets = tweets.iloc[:ntweets,: ]
-    ##extract the abstract to pandas 
-    documents = tweets.iloc[:, 0]
-    documents = documents.reset_index()
-    documents.drop("index", inplace = True, axis = 1)
-    ##create pandas data frame with all abstracts, use as input corpus
-    documents["index"] = documents.index.values
-    data = documents #pd.read_csv('/kaggle/working/train.csv')
-    data = data.fillna('')  # only the comments has NaN's
-    rws = data.text
-    sym()
-    sentences, token_lists, idx_in = preprocess(rws, samp_size=samp_size)
-    # Define the topic model object
-    #tm = Topic_Model(k = 10), method = TFIDF)
-    tm = Topic_Model(k = ntopic, method = method)
-    # Fit the topic model by chosen method
-    tm.fit(sentences, token_lists)
-    # Evaluate using metrics
-    #with open("/kaggle/working/{}.file".format(tm.id), "wb") as f:
-    #    pickle.dump(tm, f, pickle.HIGHEST_PROTOCOL)
+    if "BERT" in model:
+        method = "LDA_BERT"
+        tweets = df_processed
+        samp_size = len(tweets)
+
+        ##create pandas data frame with all abstracts, use as input corpus
+        rws = tweets[col]
+        sentences, token_lists, idx_in = preprocess_bert(rws, samp_size=samp_size)
+
+        # Define the topic model object
+        tm = Topic_Model(k = ntopic, method = method)
+
+        # Fit the topic model by chosen method
+        tm.fit(sentences, token_lists)
+
+        # Evaluate using metrics
+        print('Coherence:', get_coherence(tm, token_lists, 'c_v'))
+        print('Silhouette Score:', get_silhouette(tm))
+        save_topics(ntopic, tweets, tm.cluster_model.labels_,samp_size,save)
+
+        # visualize and save img
+        visualize(tm)
+        for i in range(tm.k):
+            get_wordcloud(tm, token_lists, i)
+                
+    if "NMF" in model:
+        print("TOPICS FOUND USING NMF")
+        Nmf_model, Nmf_model_fitted, tfidf_feature_names, tfidf = nmf = NMF_model(df_processed, col_processed, no_features)
+        display_topics(save,Nmf_model_fitted, tfidf_feature_names, no_top_words)
+        clusters = get_clusters(Nmf_model_fitted, tfidf,save)
+        get_topics(df, clusters,ntopic, save)
+        nmf_weights = Nmf_model.components_
+        topics = get_topics_terms_weights(nmf_weights, tfidf_feature_names)
+        print_topics_udf(topics, total_topics=ntopic, num_terms=30, display_weights=True)
+        topics_display_list = get_topics_udf(topics, total_topics=2, num_terms=30)
+        
     
-    print('Coherence:', get_coherence(tm, token_lists, 'c_v'))
-    print('Silhouette Score:', get_silhouette(tm))
-    # visualize and save img
-    visualize(tm)
-    for i in range(tm.k):
-        get_wordcloud(tm, token_lists, i)
+    if "LDA" in model:
+        print("TOPICS FOUND USING LDA")
+        Lda_model, Lda_model_fitted, tf_feature_names, tf, tf_vectorizer = LDA_model(df_processed, col_processed, no_features)
+        topic_of_tweets = np.argmax(Lda_model_fitted.transform(tf), axis=1)
+        display_topics(save,Lda_model_fitted, tf_feature_names, no_top_words)
+        clusters = get_clusters(Lda_model_fitted, tf,save)
+        get_topics(df, clusters,ntopic, save)
+        pyLDAvis.sklearn.prepare(Lda_model_fitted, tf, tf_vectorizer)
+
+        
+    # the analysis of destinations is done if we saved our results before
+    if save:
+        #destinations :
+        ##Load the csv file containing the different countries :
+        countries = pd.read_csv("destinations.csv")# put the path corresponding to the file
+        
+        ## TO + Country gives more insights about the destinations 
+        countries['Name'] = 'to ' + countries['Name'] 
+        
+        ##Each element of Lists_Topics is a dataframe containing a given topic
+        Lists_Topics = load_tweets(ntopic)
+        
+        ##List of lists : each element(list) contains tuples (a,b) where a is the number of occurences of b ( to + country) in the topic corresponding to the elemnt
+        destinations = find_destinations(Lists_Topics,countries)
+        
+        ##Plotting the top destinations in each topic
+        plot_destinations(destinations)
+
+    
+
+
+
+
